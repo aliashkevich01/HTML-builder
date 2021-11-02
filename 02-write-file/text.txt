@@ -1,0 +1,1 @@
+Please, input text (for ruin the process write exit or check combination CTLR+C):
