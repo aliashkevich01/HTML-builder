@@ -6,41 +6,30 @@ const pathToCss = path.join(__dirname, 'styles');
 const pathToHtml = path.join(__dirname, 'template.html');
 const pathToAssets = path.join(__dirname, 'assets');
 const pathToComponents = path.join(__dirname, 'components');
+const pathToBuild = path.join(__dirname, 'project-dist');
 const pathToCssBundle = path.join(__dirname, 'project-dist', 'style.css');
 const pathToAssetsBundle = path.join(__dirname, 'project-dist', 'assets');
 const pathToHtmlBundle = path.join(__dirname, 'project-dist', 'index.html');
 
-let htmlFile = '';
 
 async function cleanBundleFolder(pathBundle) {
-  const files = await fsProm.readdir(pathBundle);
-
-  files.forEach(async (file) => {
-    const baseFile = path.join(pathBundle, file);
-    const stat = await fsProm.stat(baseFile);
-    if (stat.isDirectory()) {
-      await cleanBundleFolder(baseFile);
-    } else {
-      await fsProm.rm(baseFile);
-    }
-  });
+  await fsProm.rm(pathBundle, { recursive: true, force: true });
+  await fsProm.mkdir(pathBundle, { recursive: true });
 }
 
 async function createHtmlBundle() {
-  const articles = await fsProm.readFile(path.join(pathToComponents, 'articles.html'));
-  const footer = await fsProm.readFile(path.join(pathToComponents, 'footer.html'));
-  const header = await fsProm.readFile(path.join(pathToComponents, 'header.html'));
-
+  const allFiles = await fsProm.readdir(pathToComponents);
+  const files = allFiles.filter(file => path.extname(file) === '.html');
   const readable = fs.createReadStream(pathToHtml, 'utf8');
-
-  readable.on('data', (chunk) => {
-    htmlFile = chunk.toString().replace('{{header}}', header);
-    htmlFile = htmlFile.replace('{{articles}}', articles);
-    htmlFile = htmlFile.replace('{{footer}}', footer);
-  });
-
-  readable.on('end', async () => {
-    await fsProm.writeFile(pathToHtmlBundle, htmlFile, 'utf8');
+  readable.on('data', async (htmlTemplate) => {
+    let htmlBundle = htmlTemplate.toString();
+    for (const componentName of files) {
+      const componentPath = path.join(pathToComponents, componentName);
+      const component = await fsProm.readFile(componentPath);
+      const name = path.basename(componentName, '.html');
+      htmlBundle = htmlBundle.replace(`{{${name}}}`, component);
+    }
+    await fsProm.writeFile(pathToHtmlBundle, htmlBundle, 'utf8');
   });
 }
 
@@ -57,7 +46,7 @@ function streamMerge(files = [], fileWriteStream) {
     return fileWriteStream.end();
   }
 
-  const currentFile = path.resolve(pathToCss, files.shift());
+  const currentFile = path.resolve(pathToCss, files.pop());
   const currentReadStream = fs.createReadStream(currentFile, 'utf8');
 
   currentReadStream.pipe(fileWriteStream, { end: false });
@@ -72,19 +61,13 @@ function streamMerge(files = [], fileWriteStream) {
   });
 }
 
-async function crateBuildFolder() {
-  const newFolderPath = path.join(__dirname, 'project-dist');
-  await fsProm.mkdir(newFolderPath, { recursive: true });
-  cleanBundleFolder(newFolderPath);
-}
-
 async function copyAssets(pathBundle, pathSource) {
   await fsProm.mkdir(pathBundle, { recursive: true });
-  const assets = await fsProm.readdir(pathSource);
+  const files = await fsProm.readdir(pathSource);
 
-  assets.forEach(async (asset) => {
-    const baseFile = path.join(pathSource, asset);
-    const newFile = path.join(pathBundle, asset);
+  files.forEach(async (file) => {
+    const baseFile = path.join(pathSource, file);
+    const newFile = path.join(pathBundle, file);
     const stat = await fsProm.stat(baseFile);
     if (stat.isDirectory()) {
       copyAssets(newFile, baseFile);
@@ -94,11 +77,11 @@ async function copyAssets(pathBundle, pathSource) {
   });
 }
 
-async function buildSite() {
-  await crateBuildFolder();
+async function buildPage() {
+  await cleanBundleFolder(pathToBuild);
   createHtmlBundle();
   createCssBundle();
   copyAssets(pathToAssetsBundle, pathToAssets);
 }
 
-buildSite();
+buildPage();

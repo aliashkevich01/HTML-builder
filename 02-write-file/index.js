@@ -11,8 +11,8 @@ setTimeout(()=>{rline.write('Please, input text (for ruin the process write exit
 rline.addListener('line', (input)=>{if(input=='exit'){exit();}writeableStream.write(input + '\n');});
 
 function exit(){
-    rline.write('The end');
-    process.exit(0);
+  rline.write('The end');
+  process.exit(0);
 }
 
 rline.addListener('close', exit);
