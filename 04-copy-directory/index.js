@@ -1,29 +1,49 @@
-const fs = require('fs/promises');
-const fsPromises = require('fs/promises');
+const fs = require('fs');
 const path = require('path');
 
-const newFolderPath = path.join(__dirname, 'files-copied');
-const baseFolderPath = path.join(__dirname, 'files');
+const { access } = require('fs');
+const { mkdir } = require('fs');
 
-async function copyFolder() {
-  try {
-    await fsPromises.access(newFolderPath, fs.constants.W_OK);
-    const oldCopyFiles = await fsPromises.readdir(newFolderPath);
-    oldCopyFiles.forEach(async (file) => {
-      const pathToFile = path.join(newFolderPath, file);
-      fsPromises.unlink(pathToFile);
-    });
-  } catch {
-    await fsPromises.mkdir(newFolderPath, { recursive: true });
+const { readdir } = require('fs/promises');
+const { copyFile } = require('fs/promises');
+const { rm } = require('fs/promises');
+
+const fsPromises = fs.promises;
+
+access(path.join(__dirname, 'files-copied'), (err) => {
+  if (err) {
+    createFolder();
+    copyFiles();
+  } else {
+    removeFiles('files-copied').then(copyFiles());
   }
+});
 
-  const files = await fsPromises.readdir(baseFolderPath);
-
-  files.forEach(async (file) => {
-    const baseFile = path.join(__dirname, 'files', file);
-    const newFile = path.join(__dirname, 'files-copied', file);
-    await fsPromises.copyFile(baseFile, newFile);
+function createFolder() {
+  mkdir(path.join(__dirname, 'files-copied'), { recursive: true }, (err) => {
+    if (err) {
+      throw err;
+    }
   });
 }
 
-copyFolder();
+async function removeFiles(dir) {
+  const files = await readdir(path.join(__dirname, dir));
+  for (const file of files) {
+    const currentPathToFile = path.join(__dirname, dir, file);
+    await rm(currentPathToFile, { recursive: true, force: true });
+  }
+  return;
+}
+
+async function copyFiles() {
+  const files = await readdir(path.join(__dirname, 'files'));
+  for (const file of files) {
+    const currentPath = path.join(__dirname, 'files', file);
+    const pathToCopy = path.join(__dirname, 'files-copied', file);
+    const fileStats = await fsPromises.stat(currentPath);
+    if (fileStats.isFile()) {
+      await copyFile(currentPath, pathToCopy);
+    }
+  }
+}
